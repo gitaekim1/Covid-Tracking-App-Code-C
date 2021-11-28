@@ -1,0 +1,314 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct user_t
+{
+	char name[32];
+	int places[32];
+	struct user_t* next;
+} user_t;
+
+// inserts alphabetically
+void insert(user_t** head, user_t* user)
+{
+	if (!*head)
+		*head = user; // if it's the first user entry inserted then it becomes the head
+
+	else
+	{
+		user_t* prev = 0; // so we dont need a prev link in the user_t struct
+
+		for (user_t* current = *head; current; current = current->next) // first start at head then move onto the next user entry 
+		{
+			for (int char_idx = 0;; ++char_idx)
+			{
+				if (user->name[char_idx] == current->name[char_idx])
+					continue; // in case two names have more than one letter and the first letters of the two names are equal, keep comparing until different
+				else
+				{
+					// check if we should insert infront of this user entry
+					if (user->name[char_idx] < current->name[char_idx])
+					{
+						user->next = current;
+
+						if (prev)
+							prev->next = user; // new user entry becomes inserted after the previous entry of the current user entry, therefore being inserted infront of it
+
+						else if (*head == current) // if we want to insert a new user entry infront of the head,then it becomes the new head
+							*head = user;
+
+						return;
+					}
+					break;
+				}
+			}
+
+			prev = current;
+		}
+
+		prev->next = user; // if the new user entry is to inserted at the end of the list
+	}
+}
+
+user_t* find(user_t* head, const char* username) // don't need head** here since it won't be modified
+{
+	for (user_t* current = head; current; current = current->next)
+	{
+		if (strcmp(current->name, username) == 0)
+			return current; // if the introduced username is equal to an existing user entry, return that user entry
+	}
+	return 0;
+}
+
+// unlinks entry and frees memory
+void remove_entry(user_t** head, user_t* user)
+{
+	user_t* prev = 0; // so we dont need a prev link in the user_t struct
+
+	for (user_t* current = *head; current; current = current->next)
+	{
+		if (current == user)
+		{
+			if (prev)
+				prev->next = user->next; //the previous user entry is linked with the next user entry so that when the current user entry is unlinked, the link isn't broken
+
+			else // must be head of the list
+				*head = user->next;
+
+			free(user); //current user entry is unlinked
+			break;
+		}
+
+		prev = current;
+	}
+}
+
+void empty(user_t** head)
+{
+	user_t* next = 0;
+
+	for (user_t* current = *head; current; current = next)
+	{
+		next = current->next;
+		free(current);
+	}
+
+	*head = 0;
+}
+
+int main()
+{
+	user_t* head = 0;
+
+	while (1)
+	{
+		printf("1) Introduce user\n");
+		printf("2) Introduce visit to venue\n");
+		printf("3) Remove user\n");
+		printf("4) Check which users have been in a particular place\n");
+		printf("5) Save to file\n");
+		printf("6) Retrieve data from file\n");
+		printf("7) Exit\n");
+		printf("8) Display all users\n\n");
+
+		int action;
+		scanf("%i", &action); // determines which action is required to be completed
+
+		switch (action)
+		{
+			case 1:
+			{
+				user_t* user = malloc(sizeof(user_t));
+				memset(user, 0, sizeof(user_t));
+
+				printf("username: ");
+				scanf("%s", user->name);
+
+				if (find(head, user->name)) // use the find function to check if an existing user entry has the same username
+				{
+					printf("[-] user already exists\n");
+				}
+				else
+				{
+					insert(&head, user); // use the insert function to add a new user entry to the list
+					printf("[+] new user added\n");
+				}
+
+				break;
+			}
+
+			case 2:
+			{
+				char username[32];
+				printf("username: ");
+				scanf("%s", username);
+
+				user_t* user = find(head, username); // use the find function to locate the user entry with the same username
+
+				if (!user)
+				{
+					printf("[-] user not found\n");
+					break;
+				}
+
+				int venue;
+				printf("venue id: ");
+				scanf("%i", &venue);
+
+				if (venue == 0) // since we use 0 to indicate if the entry is free
+				{
+					printf("[-] venue id must be non zero\n");
+					break;
+				}
+
+				// find an empty index to insert at
+				for (int i = 0; i < sizeof(user->places) / sizeof(int); ++i) // since each integer is 4 bytes
+				{
+					if (user->places[i] == 0)
+					{
+						user->places[i] = venue;
+						break;
+					}
+				}
+
+				break;
+			}
+
+			case 3:
+			{
+				char username[32];
+				printf("username: ");
+				scanf("%s", username);
+
+				user_t* user = find(head, username);
+
+				if (user)
+				{
+					remove_entry(&head, user); // use the remove entry function to link the user entry
+					printf("[+] removed user: %s\n", username);
+				}
+				else
+				{
+					printf("[-] user not found\n"); // if it's a non existing user
+				}
+				break;
+			}
+
+			case 4:
+			{
+				int venue;
+				printf("venue id: ");
+				scanf("%i", &venue);
+
+				if (venue == 0)
+				{
+					printf("[-] venue id must be non zero\n");
+					break;
+				}
+
+				printf("[+] the following users have been at venue: %i\n", venue);
+
+				if (head)
+				{
+					for (user_t* current = head; current; current = current->next)
+					{
+						for (int i = 0; i < sizeof(((user_t*)0)->places) / sizeof(int); ++i) // goes through each venue
+						{
+							if (current->places[i] == 0) // if it reaches the end of all valid vanues
+								break;
+
+							else if (current->places[i] == venue)
+							{
+								printf("%s\n", current->name);
+								break;
+							}
+						}
+					}
+				}
+
+				break;
+			}
+
+			case 5:
+			{
+				FILE* file = fopen("save.dat", "wb");
+
+				if (head)
+				{
+					for (user_t* current = head; current; current = current->next)
+					{
+						// should probably compress saved data
+						fwrite(current->name, sizeof(current->name), 1, file); // write and save username of current user entry to file
+						fwrite(current->places, sizeof(current->places), 1, file); // write and save places of current user entry to file 
+					}
+				}
+
+				printf("[+] serialised users and saved to disk\n");
+				fclose(file);
+
+				break;
+			}
+
+			case 6:
+			{
+				// free current users before loading new ones
+				empty(&head);
+
+				FILE* file = fopen("save.dat", "rb");
+
+				if (!file)
+				{
+					printf("[-] save file not found\n"); // if there is no file saved
+					break;
+				}
+
+				// deserialise and digest one user at a time
+				char buffer[sizeof(((user_t*)0)->name) + sizeof(((user_t*)0)->places)];
+
+				user_t* prev = 0;
+
+				while (fread(buffer, sizeof(buffer), 1, file))
+				{
+					user_t* user = (user_t*)malloc(sizeof(user_t));
+					memcpy(user, buffer, sizeof(buffer));
+					user->next = 0;
+
+					// could use our insert function but will be inefficient since our serialised data is already alphabetically ordered
+					// insert function would attempt to resort it which is unecessary
+					// insert(&head, user);
+
+					if (!head)
+						head = user; // when it is the first user entry
+					else
+						prev->next = user;
+
+					prev = user;
+				}
+
+				printf("[+] loaded and deserialised users from disk\n");
+				fclose(file);
+
+				break;
+			}
+
+			case 7:
+				return 0;
+				break; // redundant
+
+			case 8:
+				if (head)
+				{
+					for (user_t* current = head; current; current = current->next)
+						printf("%s\n", current->name);
+				}
+				break;
+
+      // default in case none of the cases aren't selected
+			default:
+				printf("[-] invalid action\n");
+				break;
+		}
+
+		printf("\n");
+	}
+}
